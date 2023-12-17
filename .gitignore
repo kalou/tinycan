@@ -1,0 +1,5 @@
+# Object files
+*.o
+*.hex
+test_can
+avr

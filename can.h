@@ -117,8 +117,31 @@ typedef struct {
 	char *data;
 } can_header_t;
 
+typedef struct {
+        uint32_t write_cnt; /* count of write attempts */
+        uint32_t ack_rcvd;  /* count of msg ack received */
+        uint32_t sof_rcvd;  /* count of times SOF from idle */
+
+        uint32_t ack_error; /* we didn't get an ack */
+        uint32_t msg_rcvd;  /* fully received to EOF */
+        uint32_t msg_sent;  /* fully sent to EOF */
+
+        uint32_t arbitration_lost;
+
+        uint32_t form_error;  /* someone on bus wrote unexpected bit */
+        uint32_t stuff_error; /* we read unexpected stuffing */
+        uint32_t crc_error; /* crc we read doesn't match */
+        uint32_t bit_error; /* we failed to write bit: state change didn't appear */
+
+        uint32_t unexpected; /* everything else for debug purposes */
+
+        uint32_t bus_off; /* how many times we entered bus_off */
+} can_stats_t;
+
 typedef struct _can_controller {
 	can_state_t state;
+
+	can_stats_t stats;
 
 	can_error_t error;
 	can_state_t error_state; // Where we failed
@@ -165,8 +188,8 @@ typedef struct _can_controller {
 	uint8_t adj_faster;
 	uint8_t adj_slower;
 
-	uint8_t txerr;		// Error counters
-	uint8_t rxerr;
+	uint8_t txerr_budget;		// Error counters
+	uint8_t rxerr_budget;
 
 #define min(a,b) (a<b?a:b)
 #define max(a,b) (a>b?a:b)
@@ -179,8 +202,8 @@ typedef struct _can_controller {
 #define inc_err(err, v) do { if (transmitter_error(err)) { inc_txerr(v); } \
 		             if (receiver_error(err)) { inc_rxerr(v); }; } while(0)
 
-#define bus_off() (can.txerr == 255 || can.rxerr == 255)
-#define error_passive() (can.txerr > 128 || can.rxerr > 128)
+#define bus_off() (can.txerr_budget == 0 || can.rxerr_budget == 0)
+#define error_passive() (can.txerr_budget < 128 || can.rxerr_budget < 128)
 
 } can_controller_t;
 
@@ -243,6 +266,7 @@ can_state_t can_read_bit();
 void can_set_tx(can_state_t);
 int _do_send(uint32_t, char*, int);
 uint16_t wdt_set(uint16_t);
+void can_loop();
 
 
 // API:

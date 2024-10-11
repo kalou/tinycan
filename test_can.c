@@ -5,8 +5,21 @@
 
 void print_can_state()
 {
-	printf("Can state is %d, rxerr:%d txerr:%d\n", can.state,
-			can.rxerr, can.txerr);
+	printf("Can state is %d, state_cnt %d - writes: %d, acks_rcvd: %d\n"
+	       "\tsof_rcvd:%d msg_rcvd: %d\n"
+               "\tack_errors:%d msg_sent: %d\n"
+	       "\tarbitration_lost:%d\n"
+	       "\tform_errors:%d stuff_error:%d crc_error:%d\n"
+	       "\tbit_error:%d unexp:%d\n"
+	       "\ttxerr_budget:%d rxerr_budget:%d\n",
+	       can.state, can.state_cnt, can.stats.write_cnt, can.stats.ack_rcvd,
+	       can.stats.sof_rcvd, can.stats.msg_rcvd,
+	       can.stats.ack_error, can.stats.msg_sent,
+	       can.stats.arbitration_lost, can.stats.form_error,
+	       can.stats.stuff_error, can.stats.crc_error,
+	       can.stats.bit_error, can.stats.unexpected,
+	       can.txerr_budget, can.rxerr_budget);
+
 	printf("Bits read %d, data: ", can.bit);
 	for (int i = 0; i < can_len(can.header); i++) {
 		printf("[%x] ", (unsigned char) can.data[i]);
@@ -170,8 +183,8 @@ void test_bus_off_recovers()
 	mock_rx_stream = (int[]) {1,1,1,1}; // max_idx will return more 1s
 
 	can.state = BUS_OFF;
-	can.stats.rxerr_budget = 0;
-	can.stats.txerr_budget = 0;
+	can.rxerr_budget = 0;
+	can.txerr_budget = 0;
 	do {
 		can_loop();
 		print_can_state();

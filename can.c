@@ -265,6 +265,8 @@ void can_init()
 	//  - Increasing OCR0B and OCR0A is increasing PHASE_SEG1
 #endif /* AVR */
 	memset(&can, '\x0', sizeof(can));
+	can.txerr_budget = can.rxerr_budget = 255;
+	can.next_tx = RECESSIVE;
 }
 
 void handle_error(can_error_t err)
@@ -273,14 +275,27 @@ void handle_error(can_error_t err)
 
 	switch(err) {
 		case STUFFING_ERROR:
+			can.stats.stuff_error++;
+			can.rxerr_budget--;
+			break;
 		case CRC_ERROR:
+			can.stats.crc_error++;
+			can.rxerr_budget--;
+			break;
 		case FORM_ERROR:
-			inc_rxerr(1);
+			can.stats.form_error++;
+			can.rxerr_budget--;
 			break;
 		case BIT_ERROR:
+			can.stats.bit_error++;
+			can.txerr_budget--;
+			break;
 		case ACKNOWLEDGMENT_ERROR:
-			inc_txerr(1);
+			can.stats.ack_error++;
+			can.txerr_budget--;
+			break;
 		default:
+			can.stats.unexpected++;
 			break;
 	}
 
@@ -288,6 +303,7 @@ void handle_error(can_error_t err)
 	can.error_state = can.state;
 
 	if (bus_off()) {
+		can.stats.bus_off++;
 		can_set_state(BUS_OFF);
 	} else if (error_passive()) {
 		can_set_state(READING_ERROR);
@@ -340,6 +356,7 @@ void can_loop()
 			debug("Lost arbitration\n");
 			can.write_pending = false;
 			can_set_state(READING_HEADER);
+			can.stats.arbitration_lost++;
 		} else if (can.state == READING_ACK) {
 			// Our CRC is confirmed.
 		} else {
@@ -362,6 +379,7 @@ void can_loop()
 				// 9.1 Protocol Modifications
 				// Interpret this as SOF:
 				if (can.state_cnt == 3) {
+					can.stats.sof_rcvd++;
 					if (can.write_pending) {
 						can_set_state(WRITING_HEADER);
 						goto write_header_now;
@@ -398,6 +416,7 @@ void can_loop()
 		case BUS_IDLE:
 			if (bit == DOMINANT) {
 				debug("Received start of frame\n");
+				can.stats.sof_rcvd++;
 				if (can.write_pending) {
 					can_set_state(WRITING_HEADER);
 					goto write_header_now;
@@ -408,9 +427,11 @@ void can_loop()
 				debug("Starting frame\n");
 				can.next_tx = DOMINANT;
 				can_set_state(WRITING_HEADER);
+				can.stats.write_cnt++;
 			}
 			break;
 		write_header_now:
+			can.stats.write_cnt++;
 		case WRITING_HEADER:
 			can.next_tx = bit_set(can.header, can.bit);
 			can.crc = update_crc(can.crc, can.next_tx);
@@ -446,7 +467,7 @@ void can_loop()
 			break;
 		case READING_ACK:
 			if (bit == DOMINANT) {
-				dec_txerr(1);
+				can.stats.ack_rcvd++;
 				can_set_state(WRITING_EOF);
 			} else {
 				handle_error(ACKNOWLEDGMENT_ERROR);
@@ -484,8 +505,11 @@ void can_loop()
 			if (++can.bit >= 16) {
 				can.wire_crc = ntohs(can.wire_crc) >> 1;
 				if (can.wire_crc == can.crc) {
-					dec_rxerr(1);
 					can.next_tx = DOMINANT;
+					// If we successfully read a message/CRC,
+					// increase receive error budget to at least 127.
+					if (can.rxerr_budget < 255)
+						can.rxerr_budget = max(can.rxerr_budget+1, 127);
 				} else {
 					debug("Wire CRC %d != expected %d\n",
 							can.wire_crc, can.crc);
@@ -512,27 +536,33 @@ void can_loop()
 			if (state_recessive_bits(8)) {
 				can_set_state(INTERMISSION);
 				can.read_available = true;
+				can.stats.msg_rcvd++;
 			}
 			break;
 		case WRITING_EOF:
 			// Write the ack delimiter, followed by EOF
-			// (7 recessive bits).
+			// (7 recessive bits). After reading ACK,
+			// we also increase tx budget.
 			if (state_recessive_bits(8)) {
+				if (can.txerr_budget < 255)
+					can.txerr_budget++;
+				can.stats.msg_sent++;
 				can_set_state(INTERMISSION);
 				can.write_pending = false;
 			}
 			break;
 		case BUS_OFF:
-			// If we observe 11 recessive bits 128 times,
-			// clear the slate. Since we came here by having
-			// one of the counters reach 255, this can be
-			// piggybacked on them.
 			if (state_recessive_bits(11)) {
-				dec_rxerr(1);
-				dec_txerr(1);
+				debug("Got 11 recessive bits, increasing budget\n");
+				if (can.rxerr_budget < 128)
+					can.rxerr_budget++;
+				if (can.txerr_budget < 128)
+					can.txerr_budget++;
 			}
-			if (can.txerr < 128 && can.rxerr < 128) {
-				can.txerr = can.rxerr = 0;
+			// If both are above 128 it means the above happened.
+			if (can.txerr_budget >= 128 && can.rxerr_budget >= 128) {
+				debug("Budget above 128, resetting state\n");
+				can.txerr_budget = can.rxerr_budget = 255;
 				can_set_state(INTERMISSION);
 			}
 			break;

@@ -362,8 +362,10 @@ void can_loop()
 				// 9.1 Protocol Modifications
 				// Interpret this as SOF:
 				if (can.state_cnt == 3) {
-					if (can.write_pending)
+					if (can.write_pending) {
 						can_set_state(WRITING_HEADER);
+						goto write_header_now;
+					}
 					else
 						can_set_state(READING_HEADER);
 				} else {
@@ -398,15 +400,17 @@ void can_loop()
 				debug("Received start of frame\n");
 				if (can.write_pending) {
 					can_set_state(WRITING_HEADER);
+					goto write_header_now;
 				} else {
 					can_set_state(READING_HEADER);
-				}
+                                }
 			} else if (can.write_pending) {
 				debug("Starting frame\n");
 				can.next_tx = DOMINANT;
 				can_set_state(WRITING_HEADER);
 			}
 			break;
+		write_header_now:
 		case WRITING_HEADER:
 			can.next_tx = bit_set(can.header, can.bit);
 			can.crc = update_crc(can.crc, can.next_tx);

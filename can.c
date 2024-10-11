@@ -218,9 +218,11 @@ void can_set_tx(can_state_t v)
 	can.last_sample = v;
 	TXD_set(v);
 }
+#endif /* AVR */
 
 void can_init()
 {
+#ifdef AVR
 	// Set output on TX, STBY, DEBUG
 	DEBUG_low();
 	TXD_high(); // Recessive
@@ -261,8 +263,9 @@ void can_init()
 	// Equivalence with PHASE_SEG1/PHASE_SEG2 adjustments:
 	//  - Reducing OCR0A is reducing PHASE_SEG2
 	//  - Increasing OCR0B and OCR0A is increasing PHASE_SEG1
+#endif /* AVR */
+	memset(&can, '\x0', sizeof(can));
 }
-#endif
 
 void handle_error(can_error_t err)
 {

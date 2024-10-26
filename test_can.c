@@ -317,6 +317,10 @@ int main(void)
 			1, /* ACK delimiter */
 			1,1,1,1,1,1,1, /* EOF */);
 
+	TEST_send(HighId_29bits, 0x1f01000d, 0, NULL);
+	TEST_receive(HighId_29bits, 0x1f01000d, 0, NULL, 1,1,1,1,1,
+			1,1,1,1,1,0,1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1,1,0,1,1,0,0,0,0,0,1,0,1,1,1,0,1,0,0,0,0,0,1,0,0,0,1,0,1,1,1,1,1,1,1,1,1,1,1,1);
+
 	//can_send(0x123456cc, "hello", 5);
 	//Has a double stuffing edge case at end of data->CRC:
 	TEST_receive(LargeData_29bits, 0x123456cc, 5, "hello", 1,1,1,1,1,1,1,1,
@@ -411,4 +415,7 @@ int main(void)
 			1, // ACK BIT
 			1, // ACK delimiter
 			1,1,1,1,1,1,1,1,1);
+
+	// While stuck on real bus?
+	TEST_send(WhyStuck, 0xfff, 6, "\x12\x12\x12\x12\x12\x12");
 }

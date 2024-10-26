@@ -626,11 +626,15 @@ int _do_send(uint32_t id, char *data, int dlen)
 
 int can_send(uint32_t id, char *data, int dlen)
 {
+	if (dlen > 8)
+		return -FORM_ERROR;
 	return _do_send(id, data, dlen);
 }
 
 int can_request(uint32_t id, int dlen)
 {
+	if (dlen > 8)
+		return -FORM_ERROR;
 	return _do_send(id, NULL, dlen);
 }
 

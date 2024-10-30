@@ -29,6 +29,10 @@
  *
  * Either followed by:
  *  [DATA][CRC:15][ACK:2][EOF:7] // [IFS:7]
+ *
+ * Id 29 bits: IIIIIIIIIIIXXXXXXXXXXXXXXXXXX
+ *             (   ID0   )(      ID1       )
+ *                 11bits       18bits
  */
 
 #define can_rtr(x) (can_ide(x) ? x[3] & 1 : !!(x[1] & (1<<4)))
@@ -40,10 +44,10 @@
 
 #define can_len(x) (can_rtr(x) ? 0 : can_dlc(x))
 
-#define can_id0(x) ((x[0]&0xff) << 3 | (x[1]&0xff) >> 5)
-#define can_id1(x) (((x[1]&7) << 15 | \
-	            (x[2]&0xff) << 7 | \
-		    (x[3]&0xfe) >> 1))
+#define can_id0(x) ((uint32_t)(x[0]&0xff) << 3 | (x[1]&0xe0) >> 5)
+#define can_id1(x) (((uint32_t)(x[1]&7) << 15 | \
+	             (uint32_t)(x[2]&0xff) << 7 | \
+		     (x[3]&0xfe) >> 1))
 #define can_id(x) (can_ide(x) ? (((uint32_t) can_id0(x) << 18) | can_id1(x)) : \
 		   can_id0(x))
 

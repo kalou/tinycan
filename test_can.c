@@ -47,8 +47,6 @@ static int mock_tx_stream[200] = { 1 };
 
 can_state_t can_read_bit()
 {
-	int m;
-
 	// If we're writing low, we should read it back.
 	if (mock_tx == 0)
 		return 0;
